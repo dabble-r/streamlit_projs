@@ -60,6 +60,13 @@ def get_schema(dataset: str):
 def plotting_altair(df: pd.DataFrame, x: str, y: str, chart_type: str):
     import altair as alt
 
+    df = df.copy()
+
+    # Auto-convert numeric-looking strings to numbers
+    for col in df.columns:
+        if df[col].dtype == "object":
+            df[col] = pd.to_numeric(df[col], errors="ignore")
+
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     categorical_cols = df.select_dtypes(exclude=["number"]).columns.tolist()
 
@@ -214,7 +221,8 @@ def build_main_view():
 
     # Show dataset tables
     if st.session_state.schema is not None:
-        st.write("Tables in this dataset:")
+        st.write(f"ID: bigquery-public-data.{selected_dataset}")
+        st.write("Tables:")
         st.dataframe(st.session_state.schema)
 
     # SQL text area

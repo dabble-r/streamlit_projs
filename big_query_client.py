@@ -31,6 +31,7 @@ def get_bigquery_client():
 client = get_bigquery_client()
 
 
+
 @st.cache_data
 def run_query(query: str):
     rows = client.query_and_wait(query)
@@ -63,13 +64,13 @@ def get_all_datsets():
         return []
 
 
-def get_schema(dataset: str, limit=None): 
-    preview_query = None
-    if limit:
-        preview_query = f"SELECT * FROM `bigquery-public-data.{dataset}.__TABLES__` LIMIT {limit}"
-    else:
-        preview_query = f"SELECT * FROM `bigquery-public-data.{dataset}.__TABLES__`"
-    df = query_handler(preview_query)
+def get_schema(dataset: str):
+    query = f"""
+        SELECT table_name
+        FROM `bigquery-public-data.{dataset}.INFORMATION_SCHEMA.TABLES`
+    """
+    df = run_query(query)
+    df.rename(columns={"table_name": "table_id"}, inplace=True)
     return df
 
 def build_main_view():
@@ -98,30 +99,83 @@ def build_main_view():
         st.session_state.get("selected_dataset")
     )
 
+
+def update_chart_data_type(value):
+    st.session_state.chart_data_type = value
+
+
 def build_sidebar(schema, selected_dataset):
-
     st.sidebar.title("Big Query Datasets")
-    st.sidebar.write("Select tables:")
+    st.sidebar.write("Select a table:")
 
+    # -------------------------------
+    # 1) TABLE SELECT (max 1)
+    # -------------------------------
     if st.session_state.main_submitted:
-        boxes = list(schema.table_id)
-        selected_tables = [
-            t for t in boxes
-            if st.sidebar.checkbox(t, key=f"chk_{t}")
-        ]
+        tables = list(schema.table_id)
+
+        selected_table = st.sidebar.multiselect(
+            "Choose one table:",
+            tables,
+            max_selections=1,
+            key="sidebar_table_select"
+        )
     else:
-        selected_tables = []
+        selected_table = []
+
+    # -------------------------------
+    # 2) FIELD SELECT (max 2)
+    # Only appears after table chosen
+    # -------------------------------
+    selected_fields = []
+
+    if selected_table:
+        dataset_path = f"bigquery-public-data.{selected_dataset}"
+        table_path = f"{dataset_path}.{selected_table[0]}"
+
+        table_obj = client.get_table(table_path)
+        field_names = [field.name for field in table_obj.schema]
+
+        selected_fields = st.sidebar.multiselect(
+            "Select up to 2 fields:",
+            field_names,
+            max_selections=2,
+            key="sidebar_field_select"
+        )
+    
+  # 2) Radio buttons: disabled until fields selected
+    if not selected_fields:
+        chart_type = None
+    else:
+        chart_type = st.sidebar.radio(
+            "Select a chart data type:",
+            options=["Numeric", "Mixed"],
+            key="sidebar_chart_data_type"
+        )
+
+
+    # -------------------------------
+    # 3) SUBMIT BUTTON (bottom)
+    # Enabled only when:
+    # - main submit clicked
+    # - table selected
+    # - fields selected
+    # -------------------------------
+    button_disabled = not (
+        st.session_state.main_submitted
+        and selected_table
+        and selected_fields
+    )
 
     st.sidebar.button(
         "Submit",
         on_click=submit_handler_sidebar,
-        args=(selected_dataset, selected_tables, schema),
-        disabled=not st.session_state.main_submitted,
-        key="submit_sidebar"
+        args=(selected_dataset, selected_table, selected_fields, schema),
+        disabled=button_disabled,
+        key="sidebar_submit_btn"
     )
 
-    return selected_tables
-
+    return selected_table, selected_fields
 def build_layout():
     schema, dataset = build_main_view()
 
@@ -156,38 +210,68 @@ def plotting_demo_st(df: pd.DataFrame = None):
 
 
 
-def plotting_demo_alt(query: str):
+def plotting_demo_alt(df: pd.DataFrame, selected_fields: list):
     import altair as alt
     import streamlit as st
 
-    df_alt = query_handler(query)
-    df_alt = df_alt[["name", "total", "gender"]]
-    default_data = {
-        "num_legs": [2, 4, 8, 0],
-        "num_wings": [2, 0, 0, 0],
-        "num_specimen_seen": [10, 2, 1, 8],
-    }
-    df_default = pd.DataFrame(default_data, index=["falcon", "dog", "spider", "fish"])
-    if df_alt is None:
-        df_alt = df_default
+    # Validate data
+    if df is None or df.empty:
+        st.warning("No data available to plot")
+        return
 
+    # Keep only selected fields
+    selected_fields = [f for f in selected_fields if f in df.columns]
+    df = df[selected_fields]
+
+    if not selected_fields:
+        st.warning("No valid fields selected for plotting")
+        st.dataframe(df)
+        return
+
+    # Identify numeric vs categorical
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    categorical_cols = df.select_dtypes(exclude=["number"]).columns.tolist()
+
+    # Determine x and y
+    if len(selected_fields) == 2:
+        f1, f2 = selected_fields
+
+        # numeric vs categorical mapping
+        if f1 in numeric_cols and f2 in categorical_cols:
+            x_field, y_field = f2, f1
+        elif f2 in numeric_cols and f1 in categorical_cols:
+            x_field, y_field = f1, f2
+        else:
+            # both numeric or both categorical
+            x_field, y_field = f1, f2
+
+    elif len(selected_fields) == 1:
+        # Single field → plot against row index
+        y_field = selected_fields[0]
+        df = df.reset_index().rename(columns={"index": "row_index"})
+        x_field = "row_index"
+
+    # Determine Altair types
+    x_type = "Q" if x_field in numeric_cols else "N"
+    y_type = "Q" if y_field in numeric_cols else "N"
+
+    # Build chart
     chart = (
-        alt.Chart(df_alt)
-        #.mark_line()
+        alt.Chart(df)
         .mark_point()
         .encode(
-            x=alt.X("name:N", title="Name"),
-            y=alt.Y("total:Q", title="Total"),
-            color=alt.Color("gender:N", scale=alt.Scale(scheme="category10")),
-            tooltip=["name", "total", "gender"]
+            x=alt.X(f"{x_field}:{x_type}", title=x_field),
+            y=alt.Y(f"{y_field}:{y_type}", title=y_field),
+            tooltip=selected_fields,
         )
         .properties(
             width="container",
             height=400,
-            title="My Custom Line Chart"
+            title="Custom Chart"
         )
+        .interactive()
     )
-    chart = chart.interactive()
+
     st.altair_chart(chart, use_container_width=True)
 
 
@@ -202,26 +286,28 @@ def submit_handler_main(selected_dataset: str):
         
         return schema, selected_dataset
 
-def submit_handler_sidebar(selected_dataset: str, tables: list, schema: pd.DataFrame):
-    if not tables:
-        print("boxes are not selected")
+def submit_handler_sidebar(selected_dataset: str, table: list, fields: list, schema: pd.DataFrame):
+    if not fields:
+        print("fields are not selected")
         return
 
     dataset_path = f"bigquery-public-data.{selected_dataset}"
 
-    # Load the first selected table
-    table = tables[0]
-    full_table_path = f"{dataset_path}.{table}"
+    # Load the fields
+    full_table_path = f"{dataset_path}.{table[0]}"
 
     df = run_query(f"SELECT * FROM `{full_table_path}` LIMIT 500")
 
     # If your checkboxes represent TABLES, not columns:
-    df_small = df
+    df_small = safe_extract(df, fields)
 
     # If later your checkboxes represent COLUMNS, use:
     # df_small = safe_extract(df, tables)
 
-    plotting_demo_st(df_small)
+    if st.session_state.chart_data_type == "Numeric":
+        plotting_demo_st(df_small)
+    else:
+        plotting_demo_alt(df_small, fields)
 
 def init_state():
     if "main_submitted" not in st.session_state:

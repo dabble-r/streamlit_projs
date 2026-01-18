@@ -257,10 +257,6 @@ def build_main_view():
         key="submit_main"
     )
 
-    # Display SQL error
-    if st.session_state.get("query_error"):
-        st.error(st.session_state.query_error)
-
     # Display query output
     if st.session_state.initial_df is not None:
         st.write("Query Result:")

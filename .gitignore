@@ -1,2 +1,3 @@
 myenv/
 .streamlit/secrets.toml
+samples_sql.txt

@@ -2,19 +2,23 @@ import streamlit as st
 import pandas as pd
 from google.cloud import bigquery
 from google.oauth2 import service_account
+import json
 
 
 # ---------------------------------------------------------
 # BigQuery Client
 # ---------------------------------------------------------
 @st.cache_resource
-def get_bigquery_client():
-    credentials = service_account.Credentials.from_service_account_info(
-        st.secrets["bigquery"]
-    )
-    return bigquery.Client(credentials=credentials, project=credentials.project_id)
+def get_dynamic_client(user_json: str):
+    try:
+        key_dict = json.loads(user_json)
+        credentials = service_account.Credentials.from_service_account_info(key_dict)
+        return bigquery.Client(credentials=credentials, project=credentials.project_id)
+    except Exception as e:
+        st.error(f"Invalid credentials: {e}")
+        return None
 
-client = get_bigquery_client()
+
 
 
 # ---------------------------------------------------------
@@ -23,6 +27,7 @@ client = get_bigquery_client()
 @st.cache_data(show_spinner=False)
 def run_query(query: str):
     try:
+        client = st.session_state.client
         rows = client.query_and_wait(query)
         return rows.to_dataframe(), None
     except Exception as e:
@@ -35,8 +40,10 @@ def run_query(query: str):
 # ---------------------------------------------------------
 def get_all_datasets():
     public_project = "bigquery-public-data"
-    datasets = list(client.list_datasets(project=public_project))
-    return [d.dataset_id for d in datasets]
+    if st.session_state.client:
+        client = st.session_state.client
+        datasets = list(client.list_datasets(project=public_project))
+        return [d.dataset_id for d in datasets]
 
 
 def get_schema(dataset: str):
@@ -56,6 +63,20 @@ def get_schema(dataset: str):
     df = df.rename(columns={"table_name": "table_id"})
     return df
 
+def user_key_handler(user_key_json):
+    if user_key_json:
+        st.session_state["user_key_json"] = user_key_json
+        client = get_dynamic_client(st.session_state.user_key_json)
+
+        if client:
+            st.success("Key saved successfully")
+            st.session_state.client = client
+        else:
+            st.error("Invalid credentials. Please try again.")
+        return True
+    else:
+        st.error("No key provided. Please paste your BigQuery key.")
+        return False
 
 # ---------------------------------------------------------
 # Schema Change Detector (ONLY for SQL query results)
@@ -199,6 +220,23 @@ def submit_handler_main(selected_dataset):
 def build_sidebar_chart_builder():
     st.sidebar.title("Chart Builder")
 
+    user_key_json = st.sidebar.text_area(
+        "BigQuery key (JSON):",
+        height=200,
+        key="user_key_json"
+        )
+    
+    user_key_submit = st.sidebar.button(
+        "Save Key",
+        on_click=lambda: user_key_handler(user_key_json),
+        key="save_key_btn"
+    )
+
+    if user_key_submit:
+        st.sidebar.success("Key saved successfully")
+        st.sidebar.user_key_json = ""
+
+
     df = st.session_state.initial_df
 
     if df is None or df.empty:
@@ -230,6 +268,8 @@ def build_sidebar_chart_builder():
         on_click=lambda: st.session_state.update({"plot_ready": True}),
         key="chart_builder_plot_btn"
     )
+
+   
 
 
 # ---------------------------------------------------------
@@ -303,6 +343,8 @@ def init_state():
         "chart_x": None,
         "chart_y": None,
         "chart_type_selected": None,
+        "user_key_json": None,
+        "client": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:

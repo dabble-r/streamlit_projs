@@ -1,3 +1,4 @@
+from logging import PlaceHolder
 import streamlit as st
 import time
 from datetime import datetime
@@ -6,7 +7,7 @@ from datetime import datetime
 def get_state():
     return st.session_state
 
-def chat_with_model(prompt, container):
+def chat_with_model(prompt, container, tab):
     """
     Send a chat request to Watson X and display the response.
     
@@ -25,57 +26,97 @@ def chat_with_model(prompt, container):
     source_lang = state.source_lang
     target_lang = state.target_lang
     hf_token = state.HF_TOKEN
-    print("prompt: ", prompt)
+    #print("prompt: ", prompt)
     print("source_lang: ", source_lang)
-    print("target_lang: ", target_lang)
-    
+    #print("target_lang: ", target_lang)
+    print("model_id: ", model_id)
     
     try:
         response_placeholder = container.empty()
         response_placeholder.info("🔄 Processing request...")
 
         # Hugging Face T5 call
-        
-
         current_datetime = datetime.now().time().strftime("%H:%M:%S")
 
-        if source_lang == "eng_Latn":
-            result = client.translation(
-                    prompt,
-                    model="Helsinki-NLP/opus-mt-tc-big-en-fr",
-                    src_lang=source_lang,
-                    tgt_lang=target_lang
-                )
-        elif source_lang == "fra_Latn":
-            result = client.translation(
-                    prompt,
-                    model="Helsinki-NLP/opus-mt-fr-en",
-                    src_lang=source_lang,
-                    tgt_lang=target_lang
-                )
+        ret_messages = {"task": {"translation": None, "sentiment": None}}
+        
+        if tab == 1: # Translation
+            # Translation model selection
+            if source_lang == "eng_Latn":
+                st.session_state.model_id = st.session_state.model_id_en_fr
+                result = client.translation(
+                        prompt,
+                        model=st.session_state.model_id_en_fr,
+                        src_lang=source_lang,
+                        tgt_lang=target_lang
+                    )
+                translation_result = result.translation_text
+                split_trans = translation_result.split()[2:]
+                joined_trans = " ".join(split_trans)
+                # response_placeholder.markdown(" ".join(split_trans))
+                # print(
+                #   "result:", 
+                #   {"translation": translation,
+                #    "split_trans" translation.split(),
+                #   .join(split_trans), 
+                #    "time": current_datetime}
+                # )
+                ret_messages['task']['translation'] = joined_trans
 
-        translation = result.translation_text.split()
-        response_placeholder.markdown(" ".join(translation[1:]))
-        print("result:", {"translation": translation, "time": current_datetime})
-       
+            elif source_lang == "fra_Latn":
+                st.session_state.model_id = st.session_state.model_id_fr_en
+                result = client.translation(
+                        prompt,
+                        model=st.session_state.model_id_fr_en,
+                        src_lang=source_lang,
+                        tgt_lang=target_lang
+                    )
+                translation_result = result.translation_text
+                split_trans = translation_result.split()[1:]
+                joined_trans = " ".join(split_trans)
+                #response_placeholder.markdown(" ".join(split_trans))
+                # print(
+                #   "result:", 
+                #   {"translation": translation,
+                #    "split_trans" translation.split(),
+                #   .join(split_trans), 
+                #    "time": current_datetime}
+                # )
+                ret_messages['task']['translation'] = joined_trans
+                response_format = f"""
+                                Translation: {ret_messages['task']['translation']}
+                               """
+                response_placeholder.markdown(response_format)
 
-        return translation
+        elif tab == 2: # Sentiment Analysis
+            # Sentiment analysis model selection
+            sentiment = client.text_classification(
+                prompt,
+                model=st.session_state.model_id_sentiment_analysis,
+            )
+            # print("sentiment: ", sentiment[0])
+            
+            sentiment_by_score = (sentiment[0]['label'], sentiment[0]['score'])
+            # print("sentiment: ", sentiment_by_score)
+
+            ret_messages['task']["sentiment"] = sentiment_by_score
+
+            response_format = f"""
+                                Sentiment: {ret_messages['task']['sentiment'][0]}\n\n
+                                Score: {ret_messages['task']['sentiment'][1]}
+                               """
+            response_placeholder.markdown(response_format)
+
+        return ret_messages
 
     except Exception as e:
         container.error(f"Error: {e}")
-        return None
-
-    # unreachable
-    except Exception as e:
-        error_msg = f"Error: {e}"
-        container.error(error_msg)
-        print(f"Model error: {e}")
         import traceback
         traceback.print_exc()
         return None
 
 
-def stream_response(prompt, container):
+def stream_response(prompt, container, tab):
     """
     Main entry point for streaming responses.
     Routes to Watson X chat.
@@ -89,4 +130,4 @@ def stream_response(prompt, container):
         str: Response text or None
     """
     
-    return chat_with_model(prompt, container)
+    return chat_with_model(prompt, container, tab)

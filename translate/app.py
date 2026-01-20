@@ -8,11 +8,7 @@ from src.api.model_integration import (
 )
 from src.utils.prompt_templates import (
     get_translation_prompt,
-    get_sentiment_analysis_prompt,
-    get_cultural_reference_explanation_prompt,
-    get_interactive_translation_prompt,
-    get_grammar_focus,
-    get_comms_focus,
+    get_sentiment_analysis_prompt
 )
 
 load_dotenv()
@@ -162,29 +158,46 @@ def main():
                 tab1, tab2 = st.tabs(
                     [
                         "Translation",
-                        "Placeholder"
+                        "Sentiment Analysis"
                     ]
                 )
-                ret_trans = None
+               
                 # Tab 1: Translation
                 with tab1:
                     st.subheader("Result")
                     translation_container = st.empty()
                     translation_prompt = get_translation_prompt(st.session_state.messages)
                     st.session_state.translation_prompt = translation_prompt
-                    print("translation_prompt: ", translation_prompt)
+                    #print("translation_prompt: ", translation_prompt)
                     
-                    translation = stream_response(
-                        translation_prompt,
-                        translation_container
-                    )
-                    
-                    try: 
-                        translation = translation
-                        print("ret_trans_1: ", translation)
+                    try:
+                        translation = stream_response(
+                            translation_prompt,
+                            translation_container,
+                            1
+                        )      
+                                     
 
                     except Exception as e:
                         print("ret_trans_except: ", e)
+                
+                #Tab 2: Sentiment Analysis
+                with tab2:
+                    st.subheader("Result")
+                    sentiment_container = st.empty()
+                    sentiment_prompt = get_sentiment_analysis_prompt(st.session_state.messages)
+                    st.session_state.sentiment_prompt = sentiment_prompt
+                    #print("sentiment_prompt: ", sentiment_prompt)
+                    
+                    try:
+                        sentiment = stream_response(
+                            sentiment_prompt,
+                            sentiment_container,
+                            2
+                        )         
+                                
+                    except Exception as e:
+                        print("ret_sentiment_except: ", e)
 
     # Sidebar for additional information and feedback
     with st.sidebar:
@@ -196,6 +209,9 @@ def init_state():
     defaults = {
         "HF_TOKEN": os.getenv("HF_TOKEN"),
         "model_id": None,
+        "model_id_en_fr": "Helsinki-NLP/opus-mt-tc-big-en-fr",
+        "model_id_fr_en": "Helsinki-NLP/opus-mt-fr-en",
+        "model_id_sentiment_analysis": "tabularisai/multilingual-sentiment-analysis",
         "client": None,
         "result": None,
         "params": {

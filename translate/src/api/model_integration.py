@@ -22,6 +22,7 @@ def chat_with_model(prompt, container):
     params = state.params
     source_lang = state.source_lang
     target_lang = state.target_lang
+    hf_token = state.HF_TOKEN
     print("prompt: ", prompt)
     print("source_lang: ", source_lang)
     print("target_lang: ", target_lang)
@@ -33,17 +34,15 @@ def chat_with_model(prompt, container):
 
         # Hugging Face T5 call
         result = client.translation(
-            prompt,
-            model = model_id,
-            parameters = {
-                "src_lang": source_lang,
-                "tgt_lang": target_lang
-            }
-        )
+                prompt,
+                model=model_id,
+                src_lang=source_lang,
+                tgt_lang=target_lang
+            )
 
 
-        translation = result.translation_text
-        response_placeholder.markdown(translation)
+        translation = result.translation_text.split()
+        response_placeholder.markdown(" ".join(translation[1:]))
         print("result:", translation)
         return translation
 

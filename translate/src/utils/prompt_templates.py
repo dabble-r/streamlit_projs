@@ -1,6 +1,6 @@
+def get_translation_prompt(text):
+    return (f"translate: {text}")
 
-def get_translation_prompt(text, source_lang, target_lang):
-    return f"translate {source_lang} to {target_lang}:\n\n{text}"
 
 def get_sentiment_analysis_prompt(text, source_lang):
     """

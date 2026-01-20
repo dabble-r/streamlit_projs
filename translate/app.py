@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
 from src.api.model_integration import (
     stream_response,
@@ -12,6 +14,8 @@ from src.utils.prompt_templates import (
     get_grammar_focus,
     get_comms_focus,
 )
+
+load_dotenv()
 
 
 
@@ -55,7 +59,7 @@ def setup_page():
 
 def user_key_handler(user_api_key):
     if user_api_key:
-        st.session_state["user_api_key"] = user_api_key
+        os.environ["HF_TOKEN"] = user_api_key
         
     else:
         st.error("No key provided. Please paste your API key.")
@@ -110,13 +114,15 @@ def main():
                 provider="hf-inference",
                 api_key=st.session_state.user_api_key,
             )
+
+            
             if client:
                 st.session_state.client = client
                 st.success("Key saved successfully")
             else:
                 st.error("Invalid credentials. Please try again.")
 
-        langs = ["English", "Spanish", "French", "German", "Japanese"]
+        langs = ["eng_Latn", "fra_Latn"]
 
         source_lang = st.selectbox(
             "From", langs
@@ -164,18 +170,17 @@ def main():
                 with tab1:
                     st.subheader("Result")
                     translation_container = st.empty()
-                    translation_prompt = get_translation_prompt(
-                        st.session_state.messages, st.session_state.source_lang, st.session_state.target_lang
-                    )
+                    translation_prompt = get_translation_prompt(st.session_state.messages)
                     st.session_state.translation_prompt = translation_prompt
-                    print("translation_prompt: start", translation_prompt, " stop")
+                    print("translation_prompt: ", translation_prompt)
+                    
                     translation = stream_response(
                         translation_prompt,
                         translation_container
                     )
                     
                     try: 
-                        translation = translation.translation_text
+                        translation = translation
                         print("ret_trans_1: ", translation)
 
                     except Exception as e:
@@ -189,8 +194,8 @@ def main():
 
 def init_state():
     defaults = {
-        "user_api_key": None,
-        "model_id": "google-t5/t5-base",
+        "HF_TOKEN": os.getenv("HF_TOKEN"),
+        "model_id": "Helsinki-NLP/opus-mt-fr-en",
         "client": None,
         "result": None,
         "params": {

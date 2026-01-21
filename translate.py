@@ -171,6 +171,7 @@ def setup_page():
 def user_key_handler(user_api_key):
     if user_api_key:
         st.session_state.user_api_key = user_api_key
+        st.session_state.text_area_key = ""
         client = get_client(st.session_state.user_api_key)
         return client
     else:
@@ -223,13 +224,13 @@ def main():
             "Hugging FaceAPI Key:",
             height=150,
             width="stretch",
-            key="user_api_key"
+            key="text_area_key"
         )
     
         # returns client object
         key_clicked_client = st.sidebar.button(
             "Save Key",
-            on_click=lambda: key_handler(user_api_key),
+            on_click=lambda: user_key_handler(user_api_key),
             key="save_key_btn"
         )
     
@@ -325,6 +326,7 @@ def init_state():
     defaults = {
         "key_clicked": False,
         "user_api_key": None,
+        "text_area_key": "",
         "model_id": None,
         "model_id_en_fr": "Helsinki-NLP/opus-mt-tc-big-en-fr",
         "model_id_fr_en": "Helsinki-NLP/opus-mt-fr-en",

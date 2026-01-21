@@ -47,10 +47,10 @@ def chat_with_model(prompt, container, tab):
     source_lang = state.source_lang
     target_lang = state.target_lang
     user_api_key = state.user_api_key
-    #print("prompt: ", prompt)
-    print("source_lang: ", source_lang)
-    #print("target_lang: ", target_lang)
-    print("model_id: ", model_id)
+    ##print("prompt: ", prompt)
+    #print("source_lang: ", source_lang)
+    ##print("target_lang: ", target_lang)
+    #print("model_id: ", model_id)
     
     try:
         response_placeholder = container.empty()
@@ -75,7 +75,7 @@ def chat_with_model(prompt, container, tab):
                 split_trans = translation_result.split()[2:]
                 joined_trans = " ".join(split_trans)
                 # response_placeholder.markdown(" ".join(split_trans))
-                # print(
+                # #print(
                 #   "result:", 
                 #   {"translation": translation,
                 #    "split_trans" translation.split(),
@@ -96,7 +96,7 @@ def chat_with_model(prompt, container, tab):
                 split_trans = translation_result.split()[1:]
                 joined_trans = " ".join(split_trans)
                 #response_placeholder.markdown(" ".join(split_trans))
-                # print(
+                # #print(
                 #   "result:", 
                 #   {"translation": translation,
                 #    "split_trans" translation.split(),
@@ -115,10 +115,10 @@ def chat_with_model(prompt, container, tab):
                 prompt,
                 model=st.session_state.model_id_sentiment_analysis,
             )
-            # print("sentiment: ", sentiment[0])
+            # #print("sentiment: ", sentiment[0])
             
             sentiment_by_score = (sentiment[0]['label'], sentiment[0]['score'])
-            # print("sentiment: ", sentiment_by_score)
+            # #print("sentiment: ", sentiment_by_score)
 
             ret_messages['task']["sentiment"] = sentiment_by_score
 
@@ -166,33 +166,7 @@ def setup_page():
         initial_sidebar_state="expanded",
     )
 
-    st.markdown(
-        """
-        <style>
-        :root {
-            --llama-color: #4e8cff;
-            --llama-color-light: #e6f0ff;
-            --llama-color-dark: #1a3a6c;
-            --llama-gradient-start: #4e54c8;
-            --llama-gradient-end: #8f94fb;
-        }
-        .stApp {
-            margin: auto;
-            background-color: var(--background-color);
-            color: var(--text-color);
-        }
-        .logo-container {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 1rem;
-        }
-        .logo-container img {
-            width: 150px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    
 
 def user_key_handler(user_api_key):
     if user_api_key:
@@ -234,28 +208,16 @@ def main():
     st.markdown(
         """
         <div style="text-align: center;">
-            <h1 class="header-title">🦙 Translator</h1>
+            <h1 class="header-title">Translator</h1>
             <p class="header-subtitle">Hugging Face models</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
-
-    # Meta logo
-    st.markdown(
-        """
-        <div class="logo-container">
-            <img src="https://www.translatedright.com/wp-content/uploads/2021/10/why-you-shouldnt-use-google-translate-for-business-1-scaled-2560x1280.jpg" alt="Translation Logo">
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Remove the Llama image display
-
+      
     # Sidebar for settings
     with st.sidebar:
-        st.title("🦙 Settings")
+        st.title("Settings")
         
         user_api_key = st.sidebar.text_area(
             "Hugging FaceAPI Key:",
@@ -320,7 +282,7 @@ def main():
                     translation_container = st.empty()
                     translation_prompt = get_translation_prompt(st.session_state.messages)
                     st.session_state.translation_prompt = translation_prompt
-                    #print("translation_prompt: ", translation_prompt)
+                    ##print("translation_prompt: ", translation_prompt)
                     
                     try:
                         translation = stream_response(
